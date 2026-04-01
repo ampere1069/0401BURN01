@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>公司表單轉可編輯PDF任務說明</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+      :root {
+          --glass-bg: rgba(255, 255, 255, 0.12);
+          --glass-bg-hover: rgba(255, 255, 255, 0.20);
+          --glass-border: rgba(255, 255, 255, 0.45);
+          --glass-border-strong: rgba(255, 255, 255, 0.70);
+          --glass-shadow: 0 32px 64px -12px rgba(0, 20, 60, 0.28),
+                           0 0 0 1px rgba(255,255,255,0.55) inset,
+                           0 2px 0 0 rgba(255,255,255,0.80) inset,
+                           0 -1px 0 0 rgba(255,255,255,0.20) inset;
+          --glass-shadow-hover: 0 48px 80px -16px rgba(0, 20, 60, 0.40),
+                                 0 0 0 1px rgba(255,255,255,0.75) inset,
+                                 0 2px 0 0 rgba(255,255,255,0.90) inset,
+                                 0 0 60px rgba(140, 200, 255, 0.20);
+          --glow-blue: rgba(80, 180, 255, 0.35);
+          --glow-purple: rgba(180, 120, 255, 0.20);
+          --glow-teal: rgba(80, 220, 200, 0.18);
+          --text-primary: rgba(10, 30, 60, 0.92);
+          --text-secondary: rgba(20, 60, 100, 0.70);
+          --accent-blue: #0A84FF;
+          --accent-teal: #30D158;
+          --accent-gold: #FFD60A;
+          --accent-purple: #BF5AF2;
+          --blur: blur(32px) saturate(200%);
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+          min-height: 100vh;
+          font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+          padding: 40px 24px 60px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          position: relative;
+          overflow-x: hidden;
+          background: #f0f4f8;
+      }
+
+      /* Multi-layer ambient background — visionOS white environment */
+      .bg-scene {
+          position: fixed;
+          inset: 0;
+          z-index: 0;
+          pointer-events: none;
+          overflow: hidden;
+      }
+
+      .bg-scene::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background:
+               radial-gradient(ellipse 80% 60% at 15% 20%, rgba(200, 225, 255, 0.45) 0%, transparent 60%),
+               radial-gradient(ellipse 60% 50% at 85% 15%, rgba(225, 210, 255, 0.28) 0%, transparent 55%),
+               radial-gradient(ellipse 70% 60% at 50% 90%, rgba(255, 255, 255, 0.90) 0%, transparent 55%),
+               radial-gradient(ellipse 50% 40% at 75% 65%, rgba(210, 235, 255, 0.22) 0%, transparent 50%),
+               linear-gradient(175deg, #eaf2fb 0%, #f4f8fd 35%, #ffffff 65%, #f8faff 100%);
+      }
+
+      /* Floating orbs — soft white ambient depth */
+      .orb {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(70px);
+          animation: floatOrb var(--dur, 20s) ease-in-out infinite alternate;
+          opacity: 0.55;
+      }
+      .orb-1 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(180,215,255,0.50), transparent 70%); top: -10%; left: -8%; --dur: 18s; }
+      .orb-2 { width: 400px; height: 400px; background: radial-gradient(circle, rgba(220,205,255,0.30), transparent 70%); top: 10%; right: -5%; --dur: 24s; animation-delay: -6s; }
+      .orb-3 { width: 600px; height: 600px; background: radial-gradient(circle, rgba(255,255,255,0.95), transparent 65%); bottom: -5%; left: 10%; --dur: 21s; animation-delay: -10s; }
+      .orb-4 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(255,255,255,0.85), transparent 65%); bottom: 10%; right: -5%; --dur: 26s; animation-delay: -14s; }
+
+      @keyframes floatOrb {
+          0% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(30px, -25px) scale(1.08); }
+          100% { transform: translate(-20px, 20px) scale(0.95); }
+      }
+
+      /* Subtle dot grid overlay */
+      .bg-scene::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background-image: radial-gradient(circle, rgba(60, 100, 160, 0.12) 1px, transparent 1px);
+          background-size: 36px 36px;
+      }
+
+      /* ====== TITLE ====== */
+      .dashboard-title {
+          position: relative;
+          z-index: 10;
+          text-align: center;
+          margin-bottom: 40px;
+          padding: 22px 60px 20px;
+          border-radius: 32px;
+          background: rgba(255, 255, 255, 0.18);
+          backdrop-filter: var(--blur);
+          -webkit-backdrop-filter: var(--blur);
+
+          /* Specular edge: bright top, subtle bottom */
+          border: 1px solid rgba(255, 255, 255, 0.55);
+          box-shadow:
+               0 0 0 1px rgba(255,255,255,0.80) inset,
+               0 2px 0 0 rgba(255,255,255,0.95) inset,
+               0 -1px 0 0 rgba(160,200,255,0.30) inset,
+               0 24px 50px -8px rgba(0, 20, 60, 0.22),
+               0 0 80px -20px rgba(100, 180, 255, 0.30);
+      }
+
+      /* Top specular line shine */
+      .dashboard-title::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 12%; right: 12%;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.95), rgba(200,230,255,0.80), rgba(255,255,255,0.95), transparent);
+          border-radius: 1px;
+      }
+
+      /* Bottom ambient glow stripe */
+      .dashboard-title::after {
+          content: '';
+          position: absolute;
+          bottom: -2px; left: 20%; right: 20%;
+          height: 4px;
+          background: linear-gradient(90deg, transparent, rgba(100,180,255,0.50), transparent);
+          filter: blur(3px);
+          border-radius: 4px;
+      }
+
+      .title-main {
+          font-size: 2.4rem;
+          font-weight: 700;
+          letter-spacing: 2px;
+          background: linear-gradient(145deg, #04305a 0%, #1a5c9c 50%, #0b3f6e 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          line-height: 1.2;
+      }
+
+      .title-sub {
+          font-size: 1.1rem;
+          font-weight: 400;
+          color: var(--text-secondary);
+          margin-top: 6px;
+          letter-spacing: 1px;
+      }
+
+      /* ====== GRID ====== */
+      .grid-container {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 28px;
+          max-width: 1800px;
+          width: 100%;
+          position: relative;
+          z-index: 2;
+      }
+
+      /* ====== GLASS CARD — the core visionOS surface ====== */
+      .card {
+          position: relative;
+          border-radius: 36px;
+          padding: 28px 24px 22px;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+                       box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+                       background 0.3s ease;
+
+          background: var(--glass-bg);
+          backdrop-filter: var(--blur);
+          -webkit-backdrop-filter: var(--blur);
+          border: 1px solid var(--glass-border);
+          box-shadow: var(--glass-shadow);
+      }
+
+      /* Top specular highlight — the "edge reflection" in visionOS */
+      .card::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 8%; right: 8%;
+          height: 1.5px;
+          background: linear-gradient(90deg,
+               transparent,
+               rgba(255,255,255,0.90) 25%,
+               rgba(255,255,255,1) 50%,
+               rgba(255,255,255,0.90) 75%,
+               transparent);
+          border-radius: 1px;
+          pointer-events: none;
+          z-index: 1;
+      }
+
+      /* Left edge micro-glint */
+      .card::after {
+          content: '';
+          position: absolute;
+          top: 8%; bottom: 8%; left: 0;
+          width: 1.5px;
+          background: linear-gradient(180deg,
+               transparent,
+               rgba(255,255,255,0.70) 30%,
+               rgba(255,255,255,0.85) 50%,
+               rgba(255,255,255,0.60) 70%,
+               transparent);
+          border-radius: 1px;
+          pointer-events: none;
+          z-index: 1;
+      }
+
+      .card:hover {
+          transform: translateY(-10px) scale(1.012);
+          background: var(--glass-bg-hover);
+          box-shadow: var(--glass-shadow-hover);
+      }
+
+      .full-row, .full-width {
+          grid-column: 1 / -1;
+      }
+
+      /* ====== CHART TITLE ====== */
+      .chart-title {
+          font-size: 1.5rem;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin-bottom: 16px;
+          padding-left: 18px;
+          position: relative;
+          letter-spacing: 0.5px;
+          z-index: 2;
+      }
+
+      /* Vertical accent bar with specular shine */
+      .chart-title::before {
+          content: '';
+          position: absolute;
+          left: 0; top: 2px; bottom: 2px;
+          width: 5px;
+          border-radius: 3px;
+          background: linear-gradient(180deg,
+               rgba(255,255,255,0.90) 0%,
+               var(--bar-color, #0A84FF) 20%,
+               var(--bar-color, #0A84FF) 80%,
+               rgba(255,255,255,0.60) 100%);
+          box-shadow: 0 0 10px var(--bar-glow, rgba(10,132,255,0.60));
+      }
+
+      .card-tbo .chart-title { --bar-color: #0A84FF; --bar-glow: rgba(10,132,255,0.65); }
+      .card-ste .chart-title { --bar-color: #30D158; --bar-glow: rgba(48,209,88,0.65); }
+      .card-total .chart-title { --bar-color: #BF5AF2; --bar-glow: rgba(191,90,242,0.60); }
+      .card-edit .chart-title { --bar-color: #FF9F0A; --bar-glow: rgba(255,159,10,0.60); }
+      .card-trend .chart-title { --bar-color: #64D2FF; --bar-glow: rgba(100,210,255,0.60); }
+
+      /* ====== CHART CONTAINER — inner frosted inset ====== */
+      .chart-container {
+          width: 100%;
+          height: 360px;
+          min-height: 320px;
+          border-radius: 24px;
+          padding: 10px;
+          position: relative;
+          background: rgba(255, 255, 255, 0.08);
+          box-shadow:
+               inset 0 1px 0 rgba(255,255,255,0.55),
+               inset 0 0 30px rgba(200,220,255,0.15),
+               inset 0 -1px 0 rgba(100,160,255,0.15);
+          border: 1px solid rgba(255,255,255,0.22);
+      }
+
+      /* ====== INSIGHT BOX ====== */
+      .insight-box {
+          margin-top: 18px;
+          padding: 16px 22px;
+          border-radius: 22px;
+          position: relative;
+          overflow: hidden;
+
+          background: rgba(8, 30, 60, 0.60);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(255,255,255,0.22);
+
+          box-shadow:
+               0 0 0 1px rgba(255,255,255,0.12) inset,
+               0 1px 0 0 rgba(255,255,255,0.30) inset,
+               0 12px 30px -8px rgba(0,10,40,0.50),
+               0 0 40px -10px rgba(60,140,255,0.15);
+
+          color: rgba(230, 245, 255, 0.95);
+          font-size: 1.15rem;
+          font-weight: 500;
+          line-height: 1.7;
+          transition: background 0.25s ease;
+          z-index: 2;
+      }
+
+      /* Top specular on insight box */
+      .insight-box::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 10%; right: 10%;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+      }
+
+      .insight-box:hover {
+          background: rgba(10, 38, 72, 0.72);
+      }
+
+      .insight-box p {
+          margin: 5px 0;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+      }
+
+      /* Emphasis pill — liquid gold visionOS accent */
+      .insight-box span.emphasis {
+          display: inline-flex;
+          align-items: center;
+          padding: 4px 20px;
+          border-radius: 50px;
+          font-size: 1.6rem;
+          font-weight: 800;
+          color: #1a2a00;
+          letter-spacing: 0.5px;
+
+          background: linear-gradient(145deg,
+               rgba(255,255,255,0.40) 0%,
+               rgba(255,230,10,0.90) 30%,
+               rgba(255,200,0,0.95) 70%,
+               rgba(255,255,255,0.25) 100%);
+          border: 1px solid rgba(255,255,255,0.55);
+          box-shadow:
+               0 0 0 1px rgba(255,255,255,0.70) inset,
+               0 1px 0 rgba(255,255,255,0.90) inset,
+               0 4px 16px rgba(255,210,0,0.45),
+               0 0 30px rgba(255,220,50,0.30);
+      }
+
+      /* ====== FOOTER NOTE (修改：加寬與上方圖表一致、字體加大加粗) ====== */
+      .footer-note {
+          position: relative;
+          z-index: 10;
+          margin-top: 40px;
+          max-width: 1800px; /* 改為與圖表網格相同的最大寬度 */
+          width: 100%;       /* 確保可以撐滿容器空間 */
+          text-align: center;
+          padding: 18px 36px;
+          border-radius: 28px;
+          font-size: 1.5rem; /* 字體加大 (原本為 1.05rem) */
+          font-weight: 700;  /* 字體加粗 (原本為 500) */
+          color: rgba(230, 245, 255, 0.92);
+          line-height: 1.8;
+
+          background: rgba(8, 28, 58, 0.58);
+          backdrop-filter: blur(28px) saturate(180%);
+          -webkit-backdrop-filter: blur(28px) saturate(180%);
+          border: 1px solid rgba(255,255,255,0.22);
+          box-shadow:
+               0 0 0 1px rgba(255,255,255,0.15) inset,
+               0 1px 0 rgba(255,255,255,0.30) inset,
+               0 16px 40px -10px rgba(0,10,40,0.40),
+               0 0 60px -15px rgba(60,160,255,0.20);
+      }
+
+      .footer-note::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 12%; right: 12%;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.50), transparent);
+      }
+
+      /* ====== RESPONSIVE ====== */
+      @media (max-width: 1000px) {
+          .grid-container { grid-template-columns: 1fr; }
+          .full-row, .full-width { grid-column: auto; }
+          .title-main { font-size: 1.9rem; }
+          .chart-title { font-size: 1.3rem; }
+          body { padding: 24px 14px 48px; }
+      }
+  </style>
+</head>
+<body>
+
+  <div class="bg-scene">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+      <div class="orb orb-4"></div>
+  </div>
+
+  <div class="dashboard-title">
+      <div class="title-main">公司表單轉可編輯PDF任務說明</div>
+      <div class="title-sub">(2026年3月 完成進度更新)</div>
+  </div>
+
+  <div class="grid-container" id="chartGrid">
+
+      <!-- TBO 長條柱狀圖 -->
+      <div class="card card-tbo full-row">
+          <div class="chart-title">🔵 TBO</div>
+          <div id="chartTboBar" class="chart-container"></div>
+          <div class="insight-box" id="tboBarInsight"></div>
+      </div>
+
+      <!-- STE(T) 長條柱狀圖 -->
+      <div class="card card-ste full-row">
+          <div class="chart-title">🟢 STE(T)</div>
+          <div id="chartSteBar" class="chart-container"></div>
+          <div class="insight-box" id="steBarInsight"></div>
+      </div>
+
+      <!-- 總表單圓環圖 -->
+      <div class="card card-total full-width">
+          <div class="chart-title">📊 各部門佔比 · 總表單分佈</div>
+          <div id="chartTotal" class="chart-container" style="height: 400px;"></div>
+          <div class="insight-box" id="totalInsight"></div>
+      </div>
+
+      <!-- TBO 編輯進度 -->
+      <div class="card card-edit">
+          <div class="chart-title">✎ TBO 編輯需求 vs 完成</div>
+          <div id="chartTboEdit" class="chart-container"></div>
+          <div class="insight-box" id="tboEditInsight"></div>
+      </div>
+
+      <!-- STE(T) 編輯進度 -->
+      <div class="card card-edit">
+          <div class="chart-title">✎ STE(T) 編輯需求 vs 完成</div>
+          <div id="chartSteEdit" class="chart-container"></div>
+          <div class="insight-box" id="steEditInsight"></div>
+      </div>
+
+      <!-- 替換為：表單編輯PDF任務燃盡圖 -->
+      <div class="card card-trend full-width">
+          <div class="chart-title">📉 2026年表單編輯PDF任務燃盡圖 (Burndown Chart)</div>
+          <div id="chartBurndown" class="chart-container" style="height: 450px;"></div>
+          <div class="insight-box" id="burndownInsight"></div>
+      </div>
+
+  </div>
+
+  <div class="footer-note">
+      說明：各部門公司表單轉可編輯任務由QAD持續進行中。將優先進行跨部門常使用的表單為主。⏱️目前時程規劃將分成短、中、長期三階段進行優化，⏳暫定2026年9月完成任務。💡 各部門表單如有急迫需求，請先通知品保部優先處理。
+  </div>
+
+  <script>
+  (function() {
+      // --------- 原始部門數據 ---------
+      const departments = ['AMD', 'ERD', 'FAD', 'HRD', 'ITD', 'MKD', 'PRD', 'QAD'];
+
+      const tboRaw    = [7, 12, 15, 23, 0, 7, 12, 1];
+      const tboDel    = [0,  1, 0,  2, 0, 0,  0, 0];
+      const tboRemain = tboRaw.map((v, i) => v - tboDel[i]);
+
+      const steRaw    = [13, 16, 38, 32,  6, 10, 18, 26];
+      const steDel    = [ 0,  2,  0, 11,  0, 0,  2,  0];
+      const steRemain = steRaw.map((v, i) => v - steDel[i]);
+
+      const tboReq  = [7,  9, 14, 21, 0, 0, 11, 1];
+      const tboDone = [1,  9, 14,  1, 0, 0, 0, 0];
+
+      const steReq  = [9, 10, 24, 20, 5, 0, 15, 1];
+      const steDone = [1,  0,  2,  1, 5, 0,  1, 0];
+
+      const TBO_RAW_TOTAL    = 81;
+      const TBO_REMAIN_TOTAL = 74;
+      const STE_RAW_TOTAL    = 159;
+      const STE_REMAIN_TOTAL = 144;
+
+      const combinedRaw = departments.map((_, i) => tboRaw[i] + steRaw[i]);
+
+      // --- Shared tooltip style ---
+      const tooltipStyle = {
+          trigger: 'axis',
+          axisPointer: { type: 'shadow' },
+          textStyle: { fontSize: 15, fontWeight: 'bold', color: '#e0f0ff' },
+          backgroundColor: 'rgba(6, 22, 48, 0.88)',
+          borderColor: 'rgba(100,180,255,0.50)',
+          borderWidth: 1,
+          extraCssText: `
+                box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.10) inset;
+                border-radius: 16px;
+                backdrop-filter: blur(20px);
+          `
+      };
+
+      const legendStyle = {
+          textStyle: { fontSize: 15, fontWeight: '600', color: '#0a3060' },
+          itemWidth: 26, itemHeight: 14,
+          bottom: 0,
+          backgroundColor: 'rgba(255,255,255,0.25)',
+          borderRadius: 24,
+          padding: [5, 16],
+          borderColor: 'rgba(255,255,255,0.50)',
+          borderWidth: 1
+      };
+
+      // visionOS-style bar: glass-specular with luminous top cap
+      function makeBarColor(c1, c2) {
+          return { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                    { offset: 0,    color: c1 },
+                    { offset: 0.08, color: c1 },
+                    { offset: 0.92, color: c2 },
+                    { offset: 1,    color: c2 }
+                ]
+          };
+      }
+
+      function makeBarLabel(color, bg, border) {
+          return {
+               show: true, position: 'top',
+               fontSize: 13, fontWeight: '700',
+               color: color,
+               backgroundColor: bg,
+               padding: [3, 10],
+               borderRadius: 20,
+               borderColor: border,
+               borderWidth: 1,
+               shadowBlur: 8,
+               shadowColor: border
+          };
+      }
+
+      // ========== 1. TBO 長條圖 ==========
+      echarts.init(document.getElementById('chartTboBar')).setOption({
+          tooltip: tooltipStyle,
+          legend: { ...legendStyle, data: ['原始表單', '刪除後剩餘'] },
+          grid: { left: '8%', right: '5%', top: '15%', bottom: '18%', containLabel: true },
+          xAxis: {
+               type: 'category', data: departments,
+               axisLabel: { fontSize: 14, fontWeight: '700', color: '#083050' },
+               axisLine: { lineStyle: { color: 'rgba(60,140,210,0.50)', width: 2 } },
+               axisTick: { show: false }
+          },
+          yAxis: {
+               type: 'value', name: '表單張數',
+               nameTextStyle: { fontSize: 14, fontWeight: '600', color: '#1a4570' },
+               axisLabel: { fontSize: 13, fontWeight: '600', color: '#1a4570' },
+               splitLine: { lineStyle: { color: 'rgba(100,160,220,0.22)', type: 'dashed' } }
+          },
+          series: [
+               {
+                   name: '原始表單', type: 'bar', data: tboRaw, barWidth: 22,
+                   itemStyle: {
+                       color: makeBarColor('rgba(255,210,120,0.95)', 'rgba(230,130,40,0.90)'),
+                       borderRadius: [14, 14, 0, 0],
+                       shadowColor: 'rgba(255,160,40,0.40)', shadowBlur: 14, shadowOffsetY: 4
+                   },
+                   label: makeBarLabel('#7a3800', 'rgba(255,248,220,0.88)', 'rgba(220,140,40,0.60)')
+               },
+               {
+                   name: '刪除後剩餘', type: 'bar', data: tboRemain, barWidth: 22,
+                   itemStyle: {
+                       color: makeBarColor('rgba(80,210,200,0.92)', 'rgba(30,140,130,0.88)'),
+                       borderRadius: [14, 14, 0, 0],
+                       shadowColor: 'rgba(40,180,160,0.40)', shadowBlur: 14, shadowOffsetY: 4
+                   },
+                   label: makeBarLabel('#0a4f42', 'rgba(220,255,245,0.88)', 'rgba(30,150,130,0.60)')
+               }
+          ]
+      });
+
+      document.getElementById('tboBarInsight').innerHTML = `
+          <p><span class="emphasis">${TBO_RAW_TOTAL}</span> 原始總表單  ➔ 刪除後 <span style="color:#FFE484; font-size:2rem; font-weight:800;">${TBO_REMAIN_TOTAL}</span> 張</p>
+      `;
+
+      // ========== 2. STE(T) 長條圖 ==========
+      echarts.init(document.getElementById('chartSteBar')).setOption({
+          tooltip: tooltipStyle,
+          legend: { ...legendStyle, data: ['原始表單', '刪除後剩餘'] },
+          grid: { left: '8%', right: '5%', top: '15%', bottom: '18%', containLabel: true },
+          xAxis: {
+               type: 'category', data: departments,
+               axisLabel: { fontSize: 14, fontWeight: '700', color: '#083050' },
+               axisLine: { lineStyle: { color: 'rgba(60,140,210,0.50)', width: 2 } },
+               axisTick: { show: false }
+          },
+          yAxis: {
+               type: 'value', name: '表單張數',
+               nameTextStyle: { fontSize: 14, fontWeight: '600', color: '#1a4570' },
+               axisLabel: { fontSize: 13, fontWeight: '600', color: '#1a4570' },
+               splitLine: { lineStyle: { color: 'rgba(100,160,220,0.22)', type: 'dashed' } }
+          },
+          series: [
+               {
+                   name: '原始表單', type: 'bar', data: steRaw, barWidth: 22,
+                   itemStyle: {
+                       color: makeBarColor('rgba(255,210,120,0.95)', 'rgba(230,130,40,0.90)'),
+                       borderRadius: [14, 14, 0, 0],
+                       shadowColor: 'rgba(255,160,40,0.40)', shadowBlur: 14, shadowOffsetY: 4
+                   },
+                   label: makeBarLabel('#7a3800', 'rgba(255,248,220,0.88)', 'rgba(220,140,40,0.60)')
+               },
+               {
+                   name: '刪除後剩餘', type: 'bar', data: steRemain, barWidth: 22,
+                   itemStyle: {
+                       color: makeBarColor('rgba(80,210,200,0.92)', 'rgba(30,140,130,0.88)'),
+                       borderRadius: [14, 14, 0, 0],
+                       shadowColor: 'rgba(40,180,160,0.40)', shadowBlur: 14, shadowOffsetY: 4
+                   },
+                   label: makeBarLabel('#0a4f42', 'rgba(220,255,245,0.88)', 'rgba(30,150,130,0.60)')
+               }
+          ]
+      });
+
+      document.getElementById('steBarInsight').innerHTML = `
+          <p><span class="emphasis">${STE_RAW_TOTAL}</span> 原始總表單  ➔ 刪除後 <span style="color:#FFE484; font-size:2rem; font-weight:800;">${STE_REMAIN_TOTAL}</span> 張</p>
+      `;
+
+      // ========== 3. 總表單圓環圖 ==========
+      function preparePieData(values, labels) {
+          return labels.map((l, i) => values[i] > 0 ? { name: l, value: values[i] } : null).filter(Boolean);
+      }
+
+      const pieColors = [
+          '#0A84FF','#30D158','#FF9F0A','#BF5AF2',
+          '#64D2FF','#FF453A','#FFD60A','#32ADE6'
+      ];
+
+      echarts.init(document.getElementById('chartTotal')).setOption({
+          tooltip: {
+               trigger: 'item',
+               textStyle: { fontSize: 15, fontWeight: 'bold', color: '#e0f0ff' },
+               backgroundColor: 'rgba(6,22,48,0.88)',
+               borderColor: 'rgba(100,180,255,0.50)',
+               borderWidth: 1,
+               extraCssText: 'border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);'
+          },
+          legend: {
+               orient: 'horizontal', bottom: 5,
+               textStyle: { fontSize: 14, fontWeight: '600', color: '#0a3060' },
+               itemWidth: 24, itemHeight: 14,
+               backgroundColor: 'rgba(255,255,255,0.25)',
+               borderRadius: 24, padding: [5, 16],
+               borderColor: 'rgba(255,255,255,0.50)', borderWidth: 1
+          },
+          color: pieColors,
+          series: [{
+               name: '總表單張數', type: 'pie',
+               radius: ['48%', '70%'],
+               center: ['50%', '46%'],
+               avoidLabelOverlap: true,
+               label: {
+                   show: true, position: 'outside',
+                   formatter: '{b} : {c} 張 ({d}%)',
+                   fontSize: 14, fontWeight: '700', color: '#082840',
+                   backgroundColor: 'rgba(255,255,255,0.75)',
+                   padding: [3, 12], borderRadius: 20,
+                   borderColor: 'rgba(60,140,200,0.40)', borderWidth: 1,
+                   shadowBlur: 8, shadowColor: 'rgba(80,160,255,0.30)'
+               },
+               emphasis: {
+                   scale: true, scaleSize: 8,
+                   label: { fontWeight: 'bolder', fontSize: 15 },
+                   itemStyle: { shadowBlur: 24, shadowColor: 'rgba(80,160,255,0.50)' }
+               },
+               data: preparePieData(combinedRaw, departments),
+               itemStyle: {
+                   borderRadius: 10,
+                   borderColor: 'rgba(255,255,255,0.70)',
+                   borderWidth: 2,
+                   shadowBlur: 12,
+                   shadowColor: 'rgba(120,180,255,0.30)'
+               },
+               labelLine: { length: 18, length2: 10, smooth: true, lineStyle: { width: 1.5, color: 'rgba(60,140,220,0.50)' } }
+          }]
+      });
+
+      document.getElementById('totalInsight').innerHTML = `
+          <p><span class="emphasis">218</span> TBO+STE總表單 (刪除後)</p>
+          <p>🏢 前三部門：HRD 55張 (23.3%)、FAD 53張 (22.5%)、ERD 28張 (11.9%)</p>
+      `;
+
+      // ========== 4 & 5. 編輯進度共用函式 ==========
+      function makeEditChart(id, reqData, doneData) {
+          echarts.init(document.getElementById(id)).setOption({
+               tooltip: tooltipStyle,
+               legend: { ...legendStyle, data: ['編輯需求', '已編輯'] },
+               grid: { left: '10%', right: '5%', top: '20%', bottom: '15%' },
+               xAxis: {
+                   type: 'category', data: departments,
+                   axisLabel: { fontSize: 14, fontWeight: '700', color: '#083050' },
+                   axisLine: { lineStyle: { color: 'rgba(60,140,210,0.50)', width: 2 } },
+                   axisTick: { show: false }
+               },
+               yAxis: {
+                   type: 'value', name: '表單張數',
+                   nameTextStyle: { fontSize: 14, fontWeight: '600', color: '#1a4570' },
+                   axisLabel: { fontSize: 13, fontWeight: '600', color: '#1a4570' },
+                   splitLine: { lineStyle: { color: 'rgba(100,160,220,0.22)', type: 'dashed' } }
+               },
+               series: [
+                   {
+                       name: '編輯需求', type: 'bar', data: reqData, barWidth: 20,
+                       itemStyle: {
+                           color: makeBarColor('rgba(255,200,100,0.92)', 'rgba(230,130,40,0.88)'),
+                           borderRadius: [14, 14, 0, 0],
+                           shadowBlur: 10, shadowColor: 'rgba(230,120,30,0.35)'
+                       },
+                       label: makeBarLabel('#7a3800', 'rgba(255,248,220,0.85)', 'rgba(210,130,40,0.50)')
+                   },
+                   {
+                       name: '已編輯', type: 'bar', data: doneData, barWidth: 20,
+                       itemStyle: {
+                           color: makeBarColor('rgba(80,210,200,0.92)', 'rgba(30,140,130,0.88)'),
+                           borderRadius: [14, 14, 0, 0],
+                           shadowBlur: 10, shadowColor: 'rgba(40,180,160,0.35)'
+                       },
+                       label: makeBarLabel('#0a4f42', 'rgba(215,255,240,0.85)', 'rgba(30,140,120,0.50)')
+                   }
+               ]
+          });
+      }
+
+      makeEditChart('chartTboEdit', tboReq, tboDone);
+      makeEditChart('chartSteEdit', steReq, steDone);
+
+      const tboReqTotal  = tboReq.reduce((a, b) => a + b, 0);
+      const tboDoneTotal = tboDone.reduce((a, b) => a + b, 0);
+      document.getElementById('tboEditInsight').innerHTML = `
+          <p><span class="emphasis">${tboReqTotal}</span> 總編輯需求 ·已完成 <span style="font-size:2rem;color:#FFE484;font-weight:800;">${tboDoneTotal}</span>份</p>
+          <p>✅ 整體完成率 ${((tboDoneTotal / tboReqTotal) * 100).toFixed(1)}% (已編輯/需求)</p>
+          <p>🔥 ERD、FAD 持續保持滿分；其餘部門待加速推進</p>
+      `;
+
+      const steReqTotal  = steReq.reduce((a, b) => a + b, 0);
+      const steDoneTotal = steDone.reduce((a, b) => a + b, 0);
+      document.getElementById('steEditInsight').innerHTML = `
+          <p><span class="emphasis">${steReqTotal}</span> 總編輯需求 ·已完成 <span style="font-size:2rem;color:#FFE484;font-weight:800;">${steDoneTotal}</span>份</p>
+          <p>✅ 整體完成率 ${((steDoneTotal / steReqTotal) * 100).toFixed(1)}% (已編輯/需求)</p>
+          <p>⚡ ITD 已達標，本月份 <span style="color:#A0D8FF;">FAD</span> 與 <span style="color:#A0D8FF;">PRD</span> 皆有新增完成進度！</p>
+      `;
+
+      // ========== 6. 替換為：燃盡圖 (Burndown Chart) ==========
+      // 將原本提供的 Chart.js 數據轉換為 ECharts 格式以符合原版高級視覺效果
+      const burndownLabels = ['開始', '1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月'];
+      const idealRemaining = [147, 131, 114, 98, 82, 65, 49, 33, 16, 0];
+      const actualRemaining = [147, 120, 114, 112, null, null, null, null, null, null];
+
+      echarts.init(document.getElementById('chartBurndown')).setOption({
+          tooltip: {
+               trigger: 'axis',
+               textStyle: { fontSize: 15, fontWeight: 'bold', color: '#e0f0ff' },
+               backgroundColor: 'rgba(6,22,48,0.88)',
+               borderColor: 'rgba(100,180,255,0.50)',
+               borderWidth: 1,
+               extraCssText: 'border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);'
+          },
+          legend: { ...legendStyle, data: ['預定剩餘任務', '實際剩餘任務'], bottom: 0 },
+          grid: { left: '5%', right: '5%', top: '15%', bottom: '15%', containLabel: true },
+          xAxis: {
+               type: 'category', data: burndownLabels, boundaryGap: false,
+               axisLabel: { fontSize: 15, fontWeight: '700', color: '#083050' },
+               axisLine: { lineStyle: { color: 'rgba(60,140,210,0.50)', width: 2 } },
+               axisTick: { show: false }
+          },
+          yAxis: {
+               type: 'value', name: '剩餘任務張數',
+               max: 150,
+               nameTextStyle: { fontSize: 14, fontWeight: '600', color: '#1a4570' },
+               axisLabel: { fontSize: 13, fontWeight: '600', color: '#1a4570' },
+               splitLine: { lineStyle: { color: 'rgba(100,160,220,0.22)', type: 'dashed' } }
+          },
+          series: [
+               {
+                   name: '預定剩餘任務', type: 'line', data: idealRemaining,
+                   symbolSize: 8, symbol: 'circle',
+                   itemStyle: { color: 'rgba(120, 140, 160, 0.8)', borderColor: 'rgba(255,255,255,0.5)', borderWidth: 1 },
+                   lineStyle: { width: 3, type: 'dashed', shadowColor: 'rgba(0,0,0,0.1)', shadowBlur: 5 },
+               },
+               {
+                   name: '實際剩餘任務', type: 'line', data: actualRemaining,
+                   smooth: true, symbolSize: 12, symbol: 'circle',
+                   itemStyle: { color: '#0A84FF', borderColor: 'rgba(255,255,255,0.95)', borderWidth: 3 },
+                   lineStyle: { width: 4.5, shadowColor: 'rgba(10,132,255,0.55)', shadowBlur: 16, shadowOffsetY: 6 },
+                   label: { 
+                       show: true, position: 'top', 
+                       fontSize: 16, fontWeight: '800', color: '#005bb5',
+                       formatter: (params) => params.value !== null ? params.value : '',
+                       backgroundColor: 'rgba(255,255,255,0.7)',
+                       padding: [4, 8],
+                       borderRadius: 8,
+                       distance: 8
+                   },
+                   areaStyle: {
+                       color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                           { offset: 0, color: 'rgba(10,132,255,0.25)' },
+                           { offset: 1, color: 'rgba(10,132,255,0.02)' }
+                       ])
+                   }
+               }
+          ]
+      });
+
+      document.getElementById('burndownInsight').innerHTML = `
+          <p><span class="emphasis">147</span> 總任務數 · 3月實際剩餘 <span style="font-size:2rem;color:#FFE484;font-weight:800;">112</span>份 <span style="color:#30D158; font-weight:bold; margin-left:8px;">(當月總完成進度：23.8%)</span></p>
+          <p>💡 線條往下代表逐漸完成。目前<span style="color:#A0D8FF;">實際剩餘(112)</span>高於<span style="color:#A0D8FF;">預定剩餘(98)</span>，團隊需加速推進進度以達標。</p>
+      `;
+
+      // 響應式 (更新了 resize listener 的 ID 陣列)
+      window.addEventListener('resize', function() {
+          ['chartTboBar','chartSteBar','chartTotal','chartTboEdit','chartSteEdit','chartBurndown'].forEach(id => {
+              echarts.getInstanceByDom(document.getElementById(id))?.resize();
+          });
+      });
+
+  })();
+  </script>
+</body>
+</html>
